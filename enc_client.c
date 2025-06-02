@@ -18,6 +18,34 @@ void printErrorAndExit(const char *msg, int exitCode) {
     fprintf(stderr, "%s\n", msg);
     exit(exitCode);
 }
+ssize_t recvAll(int socket, char *buffer, size_t length) {
+    size_t totalReceived = 0;
+    while (totalReceived < length) {
+        ssize_t bytesReceived = recv(socket, buffer + totalReceived, length - totalReceived, 0);
+        if (bytesReceived < 0) {
+            error("SERVER: ERROR receiving data");
+        } else if (bytesReceived == 0) {
+            break; // Client closed connection
+        }
+        totalReceived += bytesReceived;
+    }
+    return totalReceived;
+}
+
+ssize_t sendAll(int socket, const char *buffer, size_t length) {
+    size_t totalSent = 0;
+    while (totalSent < length) {
+        ssize_t bytesSent = send(socket, buffer + totalSent, length - totalSent, 0);
+        if (bytesSent < 0) {
+            error("SERVER: ERROR sending data");
+        } else if (bytesSent == 0) {
+            break; // Connection closed
+        }
+        totalSent += bytesSent;
+    }
+    return totalSent;
+}
+
 
 void readFileToBuffer(const char* filename, char* buffer, size_t bufferSize) {
     FILE* file = fopen(filename, "r");
@@ -136,6 +164,11 @@ int main(int argc, char *argv[]) {
         close(socketFD);
         exit(2);
     }
+
+   // Sends the expected size of the message
+    int msgSize = strlen(plaintextBuffer);  // Get message length
+
+    charsWritten = sendAll(socketFD, (char*)&msgSize, sizeof(msgSize)); // Send as raw bytes
 
     // Send plaintext
     memset(buffer, '\0', sizeof(buffer));

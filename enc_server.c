@@ -68,13 +68,41 @@ char* encryption(char* message, char* key) {
     return result_buffer;
 }
 
+ssize_t recvAll(int socket, char *buffer, size_t length) {
+    size_t totalReceived = 0;
+    while (totalReceived < length) {
+        ssize_t bytesReceived = recv(socket, buffer + totalReceived, length - totalReceived, 0);
+        if (bytesReceived < 0) {
+            error("SERVER: ERROR receiving data");
+        } else if (bytesReceived == 0) {
+            break; // Client closed connection
+        }
+        totalReceived += bytesReceived;
+    }
+    return totalReceived;
+}
+
+ssize_t sendAll(int socket, const char *buffer, size_t length) {
+    size_t totalSent = 0;
+    while (totalSent < length) {
+        ssize_t bytesSent = send(socket, buffer + totalSent, length - totalSent, 0);
+        if (bytesSent < 0) {
+            error("SERVER: ERROR sending data");
+        } else if (bytesSent == 0) {
+            break; // Connection closed
+        }
+        totalSent += bytesSent;
+    }
+    return totalSent;
+}
+
 
 void handleClient(int connectionSocket) {
-    char keyBuffer[MAX_BUFFER_SIZE], msgBuffer[MAX_BUFFER_SIZE], encryptedBuffer[MAX_BUFFER_SIZE];
+    // char keyBuffer[MAX_BUFFER_SIZE], msgBuffer[MAX_BUFFER_SIZE], encryptedBuffer[MAX_BUFFER_SIZE];
 
-    memset(msgBuffer, '\0', MAX_BUFFER_SIZE);
-    memset(keyBuffer, '\0', MAX_BUFFER_SIZE);
-    memset(encryptedBuffer, '\0', MAX_BUFFER_SIZE);
+    // memset(msgBuffer, '\0', MAX_BUFFER_SIZE);
+    // memset(keyBuffer, '\0', MAX_BUFFER_SIZE);
+    // memset(encryptedBuffer, '\0', MAX_BUFFER_SIZE);
 
     // 1. Handshake check
     char handshake[16];
@@ -96,39 +124,46 @@ void handleClient(int connectionSocket) {
         error("SERVER: ERROR sending handshake response");
     }
 
-    // // 3. Receive message and key
-    // if (recv(connectionSocket, msgBuffer, 255, 0) < 0)
-    //     error("SERVER: ERROR reading message");
+    //expect data that will be transmit
+    int msgSize;
+    if (recv(connectionSocket, &msgSize, sizeof(msgSize), 0) < 0) {
+        error("SERVER: ERROR receiving message size");
+    }
+    printf("here is the expected msgSize %d", msgSize);
 
-    // if (recv(connectionSocket, keyBuffer, 255, 0) < 0)
-    //     error("SERVER: ERROR reading key");
+    // Allocate buffer dynamically based on received size
+    char *msgBuffer = malloc(msgSize + 1); // +1 for null termination
+    if (!msgBuffer) {
+        error("SERVER: ERROR allocating memory");
+    }
+    char *keyBuffer = malloc(msgSize + 1); // +1 for null termination
+    if (!keyBuffer) {
+        error("SERVER: ERROR allocating memory");
+    }
+    // char *encryptedBuffer = malloc(msgSize + 1); // +1 for null termination
+    // if (!msgBuffer) {
+    //     error("SERVER: ERROR allocating memory");
+    // }
 
-    int msgRead = recv(connectionSocket, msgBuffer, sizeof(msgBuffer) - 1, 0);
-    if (msgRead < 0)
-        error("SERVER: ERROR reading message");
+
+    int msgRead = recvAll(connectionSocket,msgBuffer, msgSize);
     msgBuffer[msgRead] = '\0'; // Null-terminate
 
     // printf("msgBuffer: \"%s\"\n", msgBuffer);
 
-    int keyRead = recv(connectionSocket, keyBuffer, sizeof(keyBuffer) - 1, 0);
-    if (keyRead < 0)
-        error("SERVER: ERROR reading key");
+    // int keyRead = recv(connectionSocket, keyBuffer, sizeof(keyBuffer) - 1, 0);
+    // if (keyRead < 0)
+    //     error("SERVER: ERROR reading key");
+
+    int keyRead = recvAll(connectionSocket, keyBuffer,msgSize);
     keyBuffer[keyRead] = '\0'; 
-    // printf("keyBuffer: \"%s\"\n", keyBuffer);
-
-    // 4. Encrypt and send result
-    // strcpy(encryptedBuffer, encryption(msgBuffer, keyBuffer));
-    // strcat(encryptedBuffer, "\n");
-
-    // if (send(connectionSocket, encryptedBuffer, strlen(encryptedBuffer), 0) < 0)
-    //     error("SERVER: ERROR writing to socket");
 
     char* encrypted = encryption(msgBuffer, keyBuffer);  // Returns a null-terminated string
     int encryptedLength = strlen(encrypted);
     
-
-    if (send(connectionSocket, encrypted, encryptedLength, 0) < 0)
-    error("SERVER: ERROR writing to socket");
+    sendAll(connectionSocket,encrypted,msgSize);
+    // if (send(connectionSocket, encrypted, msgSize, 0) < 0)
+    // error("SERVER: ERROR writing to socket");
 
     close(connectionSocket);
 }
