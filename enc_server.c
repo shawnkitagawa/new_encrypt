@@ -22,15 +22,14 @@ void setupAddressStruct(struct sockaddr_in* address, int portNumber) {
     address->sin_addr.s_addr = INADDR_ANY;
 }
 
-
 char* encryption(char* message, char* key) {
-    size_t msg_len = strlen(message);
-    char* result_buffer = malloc(msg_len + 2);  // +1 for newline, +1 for '\0'
+    size_t msg_len = strlen(message); // includes the newline at the end
+    char* result_buffer = malloc(msg_len + 1);  // +1 for '\0' only
     if (!result_buffer) {
         fprintf(stderr, "Memory allocation failed\n");
         exit(1);
     }
-    memset(result_buffer, '\0', msg_len + 2);
+    memset(result_buffer, '\0', msg_len + 1);
 
     char encrypt_array[] = {
         'A','B','C','D','E','F','G','H',
@@ -41,6 +40,11 @@ char* encryption(char* message, char* key) {
     int arr_len = 27;
 
     for (size_t i = 0; i < msg_len; i++) {
+        if (message[i] == '\n') {
+        result_buffer[i] = '\n'; // Preserve newline
+        continue;
+    }
+    
         int total = 0;
 
         // Find index of message char in encrypt_array
@@ -62,8 +66,8 @@ char* encryption(char* message, char* key) {
         result_buffer[i] = encrypt_array[total % arr_len];
     }
 
-    result_buffer[msg_len] = '\n';
-    result_buffer[msg_len + 1] = '\0';
+    // Just add null terminator, no extra newline
+    result_buffer[msg_len] = '\0';
 
     return result_buffer;
 }
@@ -129,7 +133,7 @@ void handleClient(int connectionSocket) {
     if (recv(connectionSocket, &msgSize, sizeof(msgSize), 0) < 0) {
         error("SERVER: ERROR receiving message size");
     }
-    printf("here is the expected msgSize %d", msgSize);
+    // printf("here is the expected msgSize %d", msgSize);
 
     // Allocate buffer dynamically based on received size
     char *msgBuffer = malloc(msgSize + 1); // +1 for null termination
