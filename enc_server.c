@@ -44,7 +44,7 @@ char* encryption(char* message, char* key) {
         result_buffer[i] = '\n'; // Preserve newline
         continue;
     }
-    
+
         int total = 0;
 
         // Find index of message char in encrypt_array
@@ -102,12 +102,6 @@ ssize_t sendAll(int socket, const char *buffer, size_t length) {
 
 
 void handleClient(int connectionSocket) {
-    // char keyBuffer[MAX_BUFFER_SIZE], msgBuffer[MAX_BUFFER_SIZE], encryptedBuffer[MAX_BUFFER_SIZE];
-
-    // memset(msgBuffer, '\0', MAX_BUFFER_SIZE);
-    // memset(keyBuffer, '\0', MAX_BUFFER_SIZE);
-    // memset(encryptedBuffer, '\0', MAX_BUFFER_SIZE);
-
     // 1. Handshake check
     char handshake[16];
     memset(handshake, '\0', sizeof(handshake));
@@ -133,8 +127,6 @@ void handleClient(int connectionSocket) {
     if (recv(connectionSocket, &msgSize, sizeof(msgSize), 0) < 0) {
         error("SERVER: ERROR receiving message size");
     }
-    // printf("here is the expected msgSize %d", msgSize);
-
     // Allocate buffer dynamically based on received size
     char *msgBuffer = malloc(msgSize + 1); // +1 for null termination
     if (!msgBuffer) {
@@ -144,20 +136,9 @@ void handleClient(int connectionSocket) {
     if (!keyBuffer) {
         error("SERVER: ERROR allocating memory");
     }
-    // char *encryptedBuffer = malloc(msgSize + 1); // +1 for null termination
-    // if (!msgBuffer) {
-    //     error("SERVER: ERROR allocating memory");
-    // }
-
 
     int msgRead = recvAll(connectionSocket,msgBuffer, msgSize);
     msgBuffer[msgRead] = '\0'; // Null-terminate
-
-    // printf("msgBuffer: \"%s\"\n", msgBuffer);
-
-    // int keyRead = recv(connectionSocket, keyBuffer, sizeof(keyBuffer) - 1, 0);
-    // if (keyRead < 0)
-    //     error("SERVER: ERROR reading key");
 
     int keyRead = recvAll(connectionSocket, keyBuffer,msgSize);
     keyBuffer[keyRead] = '\0'; 
@@ -166,8 +147,6 @@ void handleClient(int connectionSocket) {
     int encryptedLength = strlen(encrypted);
     
     sendAll(connectionSocket,encrypted,msgSize);
-    // if (send(connectionSocket, encrypted, msgSize, 0) < 0)
-    // error("SERVER: ERROR writing to socket");
 
     close(connectionSocket);
 }
@@ -222,7 +201,6 @@ int main(int argc, char* argv[]) {
                     continue;  // try again
                 }
 
-                // printf("Child %d: Handling new connection...\n", getpid());
                 handleClient(connectionSocket);
             }
             exit(0);

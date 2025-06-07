@@ -19,24 +19,44 @@ void printErrorAndExit(const char *msg, int exitCode) {
     exit(exitCode);
 }
 
-void readFileToBuffer(const char* filename, char* buffer, size_t bufferSize) {
-    FILE* file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
+
+char* readFile(const char* filename, size_t* out_size) {
+    FILE *fp = fopen(filename, "r");
+    if (!fp) {
+        perror("fopen");
         exit(1);
     }
 
-    size_t bytesRead = fread(buffer, sizeof(char), bufferSize - 1, file);
-    if (bytesRead == 0 && ferror(file)) {
-        fprintf(stderr, "Error reading file %s\n", filename);
-        fclose(file);
+    fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    if (file_size < 0) {
+        perror("ftell");
+        fclose(fp);
+        exit(1);
+    }
+    fseek(fp, 0, SEEK_SET);
+
+    char *buffer = malloc(file_size + 1);
+    if (!buffer) {
+        perror("malloc");
+        fclose(fp);
         exit(1);
     }
 
-    buffer[bytesRead] = '\0';
+    size_t read_bytes = fread(buffer, 1, file_size, fp);
+    if (read_bytes != (size_t)file_size) {
+        fprintf(stderr, "Could not read entire file\n");
+        free(buffer);
+        fclose(fp);
+        exit(1);
+    }
+    buffer[read_bytes] = '\0';
 
-    fclose(file);
+    fclose(fp);
+    if (out_size) *out_size = read_bytes;
+    return buffer;
 }
+
 
 int validateText(const char *text) {
     for (int i = 0; text[i] != '\0'; i++) {
@@ -95,8 +115,8 @@ ssize_t sendAll(int socket, const char *buffer, size_t length) {
 int main(int argc, char *argv[]) {
     int socketFD, charsWritten, charsRead;
     struct sockaddr_in serverAddress;
-    char ciphertextBuffer[MAX_BUFFER_SIZE];
-    char keyBuffer[MAX_BUFFER_SIZE];
+    // char ciphertextBuffer[MAX_BUFFER_SIZE];
+    // char keyBuffer[MAX_BUFFER_SIZE];
     char buffer[MAX_BUFFER_SIZE];
 
     // Check usage & args
@@ -106,8 +126,14 @@ int main(int argc, char *argv[]) {
     }
 
     // Read ciphertext and key files
-    readFileToBuffer(argv[1], ciphertextBuffer, sizeof(ciphertextBuffer));
-    readFileToBuffer(argv[2], keyBuffer, sizeof(keyBuffer));
+    // readFileToBuffer(argv[1], ciphertextBuffer, sizeof(ciphertextBuffer));
+    // readFileToBuffer(argv[2], keyBuffer, sizeof(keyBuffer));
+
+    size_t ciphertext_len;
+    size_t keytext_len;
+
+    char *ciphertextBuffer = readFile(argv[1], &ciphertext_len);
+    char *keyBuffer = readFile(argv[2], &keytext_len);
 
     // Validate ciphertext and key characters
     if (!validateText(ciphertextBuffer)) {
@@ -171,60 +197,26 @@ int main(int argc, char *argv[]) {
     charsWritten = sendAll(socketFD, (char*)&msgSize, sizeof(msgSize)); // Send as raw bytes
 
 
-
-    // // Send ciphertext
-    // memset(buffer, '\0', sizeof(buffer));
-    // strcpy(buffer, ciphertextBuffer);
-    // charsWritten = send(socketFD, buffer, strlen(buffer), 0);
-    // if (charsWritten < 0) {
-    //     error("CLIENT: ERROR writing ciphertext to socket");
-    // }
-
-    // // Send key
-    // memset(buffer, '\0', sizeof(buffer));
-    // strcpy(buffer, keyBuffer);
-    // charsWritten = send(socketFD, buffer, strlen(buffer), 0);
-    // if (charsWritten < 0) {
-    //     error("CLIENT: ERROR writing key to socket");
-    // }
-
-    // memset(buffer, '\0', sizeof(buffer));
-
-    // // Receive ciphertext: read exactly plaintext length bytes
-    // int totalReceived = 0;
-    // int expectedBytes = strlen(ciphertextBuffer);  // ciphertext length expected
-    // // printf("expectedBytes: %d\n", expectedBytes);
-    // while (totalReceived < expectedBytes) {
-    //     charsRead = recv(socketFD, buffer, sizeof(buffer), 0);
-    //     if (charsRead < 0) {
-    //         error("CLIENT: ERROR reading from socket");
-    //     } else if (charsRead == 0) {
-    //         break; // connection closed early
-    //     }
-    //     fwrite(buffer, 1, charsRead, stdout);
-    //     fflush(stdout);
-    //     totalReceived += charsRead;
-    // }
-
-
      //send cipher text
 
-    memset(buffer, '\0', sizeof(buffer));
-    strcpy(buffer, ciphertextBuffer);
-    charsWritten = sendAll(socketFD, buffer, msgSize);
+    // memset(buffer, '\0', sizeof(buffer));
+    // strcpy(buffer, ciphertextBuffer);
+    charsWritten = sendAll(socketFD, ciphertextBuffer, ciphertext_len);
 
     // send key 
 
     
-    memset(buffer, '\0', sizeof(buffer));
-    strcpy(buffer, keyBuffer);
-    charsWritten = sendAll(socketFD, buffer, msgSize);
+    // memset(buffer, '\0', sizeof(buffer));
+    // strcpy(buffer, keyBuffer);
+    charsWritten = sendAll(socketFD, keyBuffer, keytext_len);
 
     // receive ciphertext 
 
-    memset(buffer, '\0', sizeof(buffer));
-    charsRead = recvAll(socketFD, buffer, msgSize);
-    fwrite(buffer,1,charsRead,stdout);
+    char *plaintext_buffer = malloc(ciphertext_len + 1);
+
+    // memset(buffer, '\0', sizeof(buffer));
+    charsRead = recvAll(socketFD, plaintext_buffer, ciphertext_len);
+    fwrite(plaintext_buffer,1,charsRead,stdout);
     fflush(stdout);
 
     // printf("Buffer: \"%s\"\n", buffer);
