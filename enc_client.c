@@ -134,11 +134,12 @@ void setupAddressStruct(struct sockaddr_in* address, int portNumber, char* hostn
 
 int main(int argc, char *argv[]) {
     int socketFD, charsWritten, charsRead;
+    int file_size;
     struct sockaddr_in serverAddress;
     // char plaintextBuffer[MAX_BUFFER_SIZE];
     // char keyBuffer[MAX_BUFFER_SIZE];
     char buffer[MAX_BUFFER_SIZE];
-    char cipherbuffer[MAX_BUFFER_SIZE];
+    // char cipherbuffer[MAX_BUFFER_SIZE];
 
     // Check usage & args
     if (argc != 4) {
@@ -165,7 +166,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Check that key is at least as long as plaintext
-    if (strlen(keyBuffer) < strlen(plaintextBuffer)) {
+    if (keytext_len < plaintext_len) {
         fprintf(stderr, "Error: key is too short\n");
         exit(1);
     }
@@ -209,7 +210,7 @@ int main(int argc, char *argv[]) {
 
    // Sends the expected size of the message
     int msgSize = strlen(plaintextBuffer);  // Get message length
-    printf("msgSize is %d", msgSize);
+    // printf("msgSize is %d", msgSize);
 
 
     charsWritten = sendAll(socketFD, (char*)&msgSize, sizeof(msgSize)); // Send as raw bytes
@@ -232,22 +233,23 @@ int main(int argc, char *argv[]) {
 
     //send plaintext 
 
-    memset(buffer, '\0', sizeof(buffer));
-    strcpy(buffer, plaintextBuffer);
-    charsWritten = sendAll(socketFD, buffer, msgSize);
+    // memset(buffer, '\0', sizeof(buffer));
+    // strcpy(buffer, plaintextBuffer);
+    charsWritten = sendAll(socketFD, plaintextBuffer, plaintext_len);
 
     // send key 
 
     
-    memset(buffer, '\0', sizeof(buffer));
-    strcpy(buffer, keyBuffer);
-    charsWritten = sendAll(socketFD, buffer, msgSize);
+    // memset(buffer, '\0', sizeof(buffer));
+    // strcpy(buffer, keyBuffer);
+    charsWritten = sendAll(socketFD, keyBuffer, keytext_len);
 
     // receive ciphertext 
 
-    memset(buffer, '\0', sizeof(buffer));
-    charsRead = recvAll(socketFD, buffer, msgSize);
-    fwrite(buffer,1,charsRead,stdout);
+    char *ciphertext_buffer = malloc(plaintext_len + 1);
+
+    charsRead = recvAll(socketFD, ciphertext_buffer, plaintext_len);
+    fwrite(ciphertext_buffer,1,charsRead,stdout);
     fflush(stdout);
 
 
