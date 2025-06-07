@@ -47,27 +47,64 @@ ssize_t sendAll(int socket, const char *buffer, size_t length) {
 }
 
 
-void readFileToBuffer(const char* filename, char* buffer, size_t bufferSize) {
-    FILE* file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
+// void readFileToBuffer(const char* filename, char* buffer, size_t bufferSize) {
+//     FILE* file = fopen(filename, "r");
+//     if (file == NULL) {
+//         fprintf(stderr, "Error opening file %s\n", filename);
+//         exit(1);
+//     }
+
+//     size_t bytesRead = fread(buffer, sizeof(char), bufferSize - 1, file);
+//     if (bytesRead == 0 && ferror(file)) {
+//         fprintf(stderr, "Error reading file %s\n", filename);
+//         fclose(file);
+//         exit(1);
+//     }
+
+//     buffer[bytesRead] = '\0';
+
+//     // if (bytesRead > 0 && buffer[bytesRead - 1] == '\n') {
+//     //     buffer[bytesRead - 1] = '\0';
+//     // }
+
+//     fclose(file);
+// }
+
+char* readFile(const char* filename, size_t* out_size) {
+    FILE *fp = fopen(filename, "r");
+    if (!fp) {
+        perror("fopen");
         exit(1);
     }
 
-    size_t bytesRead = fread(buffer, sizeof(char), bufferSize - 1, file);
-    if (bytesRead == 0 && ferror(file)) {
-        fprintf(stderr, "Error reading file %s\n", filename);
-        fclose(file);
+    fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    if (file_size < 0) {
+        perror("ftell");
+        fclose(fp);
+        exit(1);
+    }
+    fseek(fp, 0, SEEK_SET);
+
+    char *buffer = malloc(file_size + 1);
+    if (!buffer) {
+        perror("malloc");
+        fclose(fp);
         exit(1);
     }
 
-    buffer[bytesRead] = '\0';
+    size_t read_bytes = fread(buffer, 1, file_size, fp);
+    if (read_bytes != (size_t)file_size) {
+        fprintf(stderr, "Could not read entire file\n");
+        free(buffer);
+        fclose(fp);
+        exit(1);
+    }
+    buffer[read_bytes] = '\0';
 
-    // if (bytesRead > 0 && buffer[bytesRead - 1] == '\n') {
-    //     buffer[bytesRead - 1] = '\0';
-    // }
-
-    fclose(file);
+    fclose(fp);
+    if (out_size) *out_size = read_bytes;
+    return buffer;
 }
 
 int validateText(const char *text) {
@@ -98,8 +135,8 @@ void setupAddressStruct(struct sockaddr_in* address, int portNumber, char* hostn
 int main(int argc, char *argv[]) {
     int socketFD, charsWritten, charsRead;
     struct sockaddr_in serverAddress;
-    char plaintextBuffer[MAX_BUFFER_SIZE];
-    char keyBuffer[MAX_BUFFER_SIZE];
+    // char plaintextBuffer[MAX_BUFFER_SIZE];
+    // char keyBuffer[MAX_BUFFER_SIZE];
     char buffer[MAX_BUFFER_SIZE];
     char cipherbuffer[MAX_BUFFER_SIZE];
 
@@ -110,8 +147,12 @@ int main(int argc, char *argv[]) {
     }
 
     // Read plaintext and key files
-    readFileToBuffer(argv[1], plaintextBuffer, sizeof(plaintextBuffer));
-    readFileToBuffer(argv[2], keyBuffer, sizeof(keyBuffer));
+    size_t plaintext_len;
+    size_t keytext_len;
+
+    char *plaintextBuffer = readFile(argv[1], &plaintext_len);
+    char *keyBuffer = readFile(argv[2], &keytext_len);
+    // readFileToBuffer(argv[2], keyBuffer, sizeof(keyBuffer));
 
     // Validate plaintext and key characters
     if (!validateText(plaintextBuffer)) {
@@ -168,6 +209,8 @@ int main(int argc, char *argv[]) {
 
    // Sends the expected size of the message
     int msgSize = strlen(plaintextBuffer);  // Get message length
+    printf("msgSize is %d", msgSize);
+
 
     charsWritten = sendAll(socketFD, (char*)&msgSize, sizeof(msgSize)); // Send as raw bytes
 
